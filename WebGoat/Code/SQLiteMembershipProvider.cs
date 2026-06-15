@@ -1047,7 +1047,7 @@ namespace TechInfoSystems.Data.SQLite
 			}
 			SecUtility.CheckParameter (ref encodedPwdAnswer, this.RequiresQuestionAndAnswer, this.RequiresQuestionAndAnswer, false, MAX_PASSWORD_ANSWER_LENGTH, "passwordAnswer");
 
-			string newPassword = Membership.GeneratePassword (NEW_PASSWORD_LENGTH, MinRequiredNonAlphanumericCharacters);
+			string newPassword = GenerateSecurePassword (NEW_PASSWORD_LENGTH, MinRequiredNonAlphanumericCharacters);
 
 			ValidatePasswordEventArgs e = new ValidatePasswordEventArgs (username, newPassword, false);
 			this.OnValidatingPassword (e);
@@ -1956,4 +1956,68 @@ namespace TechInfoSystems.Data.SQLite
 
 	}
 
+		private static string GenerateSecurePassword (int length, int minNonAlphanumeric)
+		{
+			if (length < 1) {
+				throw new ArgumentOutOfRangeException ("length");
+			}
+
+			if (minNonAlphanumeric < 0 || minNonAlphanumeric > length) {
+				throw new ArgumentOutOfRangeException ("minNonAlphanumeric");
+			}
+
+			const string alphanumericChars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+			const string nonAlphanumericChars = "!@#$%^&*()-_=+[]{}|;:,.?";
+
+			char[] password = new char[length];
+			bool[] usedPositions = new bool[length];
+
+			// Place required non-alphanumeric characters at random positions.
+			for (int i = 0; i < minNonAlphanumeric; i++) {
+				int pos;
+				do {
+					pos = GetSecureRandomInt32 (length);
+				} while (usedPositions[pos]);
+
+				usedPositions[pos] = true;
+				password[pos] = nonAlphanumericChars[GetSecureRandomInt32 (nonAlphanumericChars.Length)];
+			}
+
+			// Fill remaining positions with alphanumeric characters.
+			for (int i = 0; i < length; i++) {
+				if (!usedPositions[i]) {
+					password[i] = alphanumericChars[GetSecureRandomInt32 (alphanumericChars.Length)];
+				}
+			}
+
+			// Shuffle to avoid any residual positional bias.
+			for (int i = length - 1; i > 0; i--) {
+				int j = GetSecureRandomInt32 (i + 1);
+				char tmp = password[i];
+				password[i] = password[j];
+				password[j] = tmp;
+			}
+
+			return new string (password);
+		}
+
+		private static int GetSecureRandomInt32 (int maxExclusive)
+		{
+			if (maxExclusive <= 0) {
+				throw new ArgumentOutOfRangeException ("maxExclusive");
+			}
+
+			byte[] uint32Buffer = new byte[4];
+			uint limit = UInt32.MaxValue - (UInt32.MaxValue % (uint)maxExclusive);
+			uint value;
+
+			using (RandomNumberGenerator rng = RandomNumberGenerator.Create ()) {
+				do {
+					rng.GetBytes (uint32Buffer);
+					value = BitConverter.ToUInt32 (uint32Buffer, 0);
+				} while (value >= limit);
+			}
+
+			return (int)(value % (uint)maxExclusive);
+		}
 }
