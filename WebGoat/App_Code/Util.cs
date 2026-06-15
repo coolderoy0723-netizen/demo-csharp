@@ -10,9 +10,23 @@ namespace OWASP.WebGoat.NET.App_Code
     public class Util
     {
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+
+        private static bool ContainsUnsafeProcessChars(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return true;
+
+            return value.IndexOfAny(new[] { '&', '|', ';', '`', '>', '<', '\r', '\n' }) >= 0;
+        }
         
         public static int RunProcessWithInput(string cmd, string args, string input)
         {
+            if (ContainsUnsafeProcessChars(cmd))
+                throw new ArgumentException("Invalid process executable path.", "cmd");
+
+            if (ContainsUnsafeProcessChars(args))
+                throw new ArgumentException("Invalid process arguments.", "args");
+
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 WorkingDirectory = Settings.RootDir,
