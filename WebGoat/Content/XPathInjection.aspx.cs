@@ -6,6 +6,7 @@ using System.Web.UI;
 using System.Web.UI.WebControls;
 using System.Xml;
 using System.Xml.XPath;
+using System.Xml.Xsl;
 
 namespace OWASP.WebGoat.NET
 {
@@ -25,12 +26,85 @@ namespace OWASP.WebGoat.NET
         {
             XmlDocument xDoc = new XmlDocument();
             xDoc.LoadXml(xml);
-            XmlNodeList list = xDoc.SelectNodes("//salesperson[state='" + state + "']");
+
+            XPathExpression expr = XPathExpression.Compile("//salesperson[state=$state]");
+            XsltArgumentList args = new XsltArgumentList();
+            args.AddParam("state", string.Empty, state);
+            expr.SetContext(new XPathVariableContext(args));
+
+            XmlNodeList list = xDoc.SelectNodes(expr);
             if (list.Count > 0)
             {
 
             }
 
+        }
+
+        private sealed class XPathVariableContext : XsltContext
+        {
+            private readonly XsltArgumentList _args;
+
+            public XPathVariableContext(XsltArgumentList args)
+            {
+                _args = args;
+            }
+
+            public override bool Whitespace
+            {
+                get { return true; }
+            }
+
+            public override int CompareDocument(string baseUri, string nextbaseUri)
+            {
+                return 0;
+            }
+
+            public override bool PreserveWhitespace(XPathNavigator node)
+            {
+                return true;
+            }
+
+            public override IXsltContextFunction ResolveFunction(string prefix, string name, XPathResultType[] ArgTypes)
+            {
+                return null;
+            }
+
+            public override IXsltContextVariable ResolveVariable(string prefix, string name)
+            {
+                return new XPathVariable(_args, name);
+            }
+        }
+
+        private sealed class XPathVariable : IXsltContextVariable
+        {
+            private readonly XsltArgumentList _args;
+            private readonly string _name;
+
+            public XPathVariable(XsltArgumentList args, string name)
+            {
+                _args = args;
+                _name = name;
+            }
+
+            public bool IsLocal
+            {
+                get { return false; }
+            }
+
+            public bool IsParam
+            {
+                get { return true; }
+            }
+
+            public XPathResultType VariableType
+            {
+                get { return XPathResultType.Any; }
+            }
+
+            public object Evaluate(XsltContext xsltContext)
+            {
+                return _args.GetParam(_name, string.Empty);
+            }
         }
     }
 }
