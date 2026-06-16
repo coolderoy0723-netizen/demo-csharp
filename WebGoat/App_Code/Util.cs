@@ -11,26 +11,54 @@ namespace OWASP.WebGoat.NET.App_Code
     {
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
-        private static bool ContainsUnsafeProcessChars(string value)
+        private static bool IsSafeExecutablePath(string value)
         {
-            if (string.IsNullOrEmpty(value))
-                return true;
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
 
-            return value.IndexOfAny(new[] { '&', '|', ';', '`', '>', '<', '\r', '\n' }) >= 0;
+            if (!Path.IsPathRooted(value))
+                return false;
+
+            string fullPath = Path.GetFullPath(value);
+            return File.Exists(fullPath);
+        }
+
+        private static bool IsSafeSingleQuotedPathArgument(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            value = value.Trim();
+
+            if (value.Length < 2 || value[0] != '"' || value[value.Length - 1] != '"')
+                return false;
+
+            string innerPath = value.Substring(1, value.Length - 2);
+
+            if (innerPath.IndexOf('"') >= 0)
+                return false;
+
+            if (!Path.IsPathRooted(innerPath))
+                innerPath = Path.Combine(Settings.RootDir, innerPath);
+
+            string fullPath = Path.GetFullPath(innerPath);
+            string rootFullPath = Path.GetFullPath(Settings.RootDir);
+
+            return fullPath.StartsWith(rootFullPath, StringComparison.OrdinalIgnoreCase);
         }
         
         public static int RunProcessWithInput(string cmd, string args, string input)
         {
-            if (ContainsUnsafeProcessChars(cmd))
+            if (!IsSafeExecutablePath(cmd))
                 throw new ArgumentException("Invalid process executable path.", "cmd");
 
-            if (ContainsUnsafeProcessChars(args))
+            if (!IsSafeSingleQuotedPathArgument(args))
                 throw new ArgumentException("Invalid process arguments.", "args");
 
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 WorkingDirectory = Settings.RootDir,
-                FileName = cmd,
+                FileName = Path.GetFullPath(cmd),
                 Arguments = args,
                 UseShellExecute = false,
                 RedirectStandardInput = true,
