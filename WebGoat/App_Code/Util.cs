@@ -20,7 +20,11 @@ namespace OWASP.WebGoat.NET.App_Code
                 return false;
 
             string fullPath = Path.GetFullPath(value);
-            return File.Exists(fullPath);
+            if (!File.Exists(fullPath))
+                return false;
+
+            string fileName = Path.GetFileName(fullPath);
+            return string.Equals(fileName, "mysql.exe", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsSafeSingleQuotedPathArgument(string value)
